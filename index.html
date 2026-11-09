@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CYBER HANOI - 限界突破パズル</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (等幅フォント JetBrains Mono を追加して数字のガタつきを完全防止) -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #0b0f19;
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            touch-action: manipulation;
+        }
+
+        .font-cyber {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* タイマーや手数用の等幅フォント（1と0の横幅を完全に統一し、画面の揺れを防ぐ） */
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+        }
+
+        /* サイバーグリッド背景 */
+        .cyber-bg {
+            background: 
+                radial-gradient(circle at 50% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 60%),
+                radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
+                linear-gradient(to bottom, #090d16 0%, #111827 100%);
+            position: relative;
+        }
+        
+        .cyber-bg::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        /* ガラスモーフィズムパネル */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        /* タワーエリアのスタイル */
+        .tower-zone {
+            transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+        }
+
+        .tower-zone.selected-zone {
+            background: rgba(56, 189, 248, 0.12);
+            border-color: rgba(56, 189, 248, 0.6);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.2) inset;
+        }
+
+        .tower-zone.valid-target:hover {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+
+        /* 棒（杭）のスタイル */
+        .peg-rod {
+            background: linear-gradient(90deg, #475569 0%, #94a3b8 50%, #334155 100%);
+            box-shadow: 0 0 15px rgba(148, 163, 184, 0.3);
+        }
+
+        .peg-base {
+            background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+            border-top: 2px solid #64748b;
+        }
+
+        /* 円盤（ディスク）のアニメーションとスタイル */
+        .disk {
+            transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease;
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+        }
+
+        /* 選択されて浮いている円盤 */
+        .disk.lifted {
+            transform: translateY(-42px) scale(1.06);
+            filter: brightness(1.2);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6), 0 0 20px currentColor;
+            z-index: 30;
+            animation: floatPulse 1.2s ease-in-out infinite alternate;
+        }
+
+        @keyframes floatPulse {
+            0% { transform: translateY(-38px) scale(1.05); }
+            100% { transform: translateY(-46px) scale(1.08); }
+        }
+
+        /* エラー時のシェイクアニメーション */
+        @keyframes errorShake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+
+        .shake-error {
+            animation: errorShake 0.4s ease-in-out;
+            border-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.15) !important;
+        }
+
+        /* 認定証のホログラム風枠 */
+        .certificate-card {
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #1e1b4b 100%);
+            border: 3px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+        }
+        .certificate-card::after {
+            content: '';
+            position: absolute;
+            top: -3px; bottom: -3px; left: -3px; right: -3px;
+            background: linear-gradient(135deg, #38bdf8, #a855f7, #ec4899, #eab308, #38bdf8);
+            z-index: -1;
+            border-radius: 1.5rem;
+        }
+
+        /* カスタムスクロールバー非表示 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body class="cyber-bg flex flex-col justify-between p-3 sm:p-4 select-none">
+
+    <!-- 紙吹雪エフェクト用キャンバス -->
+    <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+    <!-- 上部ヘッダー：レベル選択・ステータス・操作ボタン -->
+    <header class="w-full max-w-7xl mx-auto z-20 flex flex-wrap items-center justify-between gap-2 glass-panel rounded-2xl px-4 py-2.5">
+        
+        <!-- 左側：ロゴ＆レベル選択 -->
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                    <i class="fa-solid fa-layer-group text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-cyber text-lg sm:text-xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-purple-400 leading-none">
+                        CYBER HANOI
+                    </h1>
+                    <p class="text-[11px] text-slate-400 font-bold tracking-widest mt-0.5">最小手数パーフェクトチャレンジ</p>
+                </div>
+            </div>
+
+            <!-- レベル選択ボタングループ -->
+            <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 ml-2" id="level-buttons">
+                <!-- JSで動的生成 -->
+            </div>
+        </div>
+
+        <!-- 中央：残り手数（ライフ）＆タイマー（幅を固定してガタつきを防止） -->
+        <div class="flex items-center gap-3 sm:gap-4">
+            <!-- 残り手数カウンター -->
+            <div class="flex items-center justify-between gap-3 bg-slate-900/90 px-4 py-1.5 rounded-xl border border-slate-700/80 w-[235px]">
+                <div class="text-left">
+                    <div class="text-[10px] text-cyan-400 font-bold tracking-wider whitespace-nowrap">残り手数 (最小<span id="min-moves-label" class="font-mono-num">7</span>手)</div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="remaining-moves" class="font-mono-num text-2xl sm:text-3xl font-extrabold text-white leading-none inline-block min-w-[3ch] text-right">7</span>
+                        <span class="text-xs text-slate-400 font-bold">手</span>
+                    </div>
+                </div>
+                <div class="h-8 w-[1px] bg-slate-700 shrink-0"></div>
+                <div class="text-right min-w-[56px]">
+                    <div class="text-[10px] text-slate-400 font-bold">現在</div>
+                    <div class="font-mono-num text-lg font-bold text-slate-300 leading-tight"><span id="current-moves">0</span><span class="text-xs ml-0.5 font-sans">手</span></div>
+                </div>
+            </div>
+
+            <!-- タイマー表示（横幅完全固定＆等幅フォントで揺れゼロ） -->
+            <div class="flex items-center gap-3 bg-slate-900/90 px-4 py-1.5 rounded-xl border border-slate-700/80 w-[175px]">
+                <i class="fa-solid fa-stopwatch text-amber-400 text-xl shrink-0"></i>
+                <div class="w-full">
+                    <div class="text-[10px] text-amber-400 font-bold tracking-wider">TIME</div>
+                    <div id="timer-display" class="font-mono-num text-xl sm:text-2xl font-extrabold text-white tracking-tight leading-none">
+                        00:00.0
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：ユーティリティボタン -->
+        <div class="flex items-center gap-2">
+            <button id="btn-rule" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-circle-question text-cyan-400"></i>
+                <span>ルール</span>
+            </button>
+            <button id="btn-sound" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-600 flex items-center justify-center transition active:scale-95" title="サウンド切替">
+                <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+            </button>
+            <button id="btn-reset" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>やり直す</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ステータスメッセージ＆操作ガイドバー -->
+    <div class="w-full max-w-4xl mx-auto my-1.5 z-20 flex items-center justify-center">
+        <div id="guide-banner" class="px-6 py-1.5 rounded-full bg-slate-800/90 border border-cyan-500/30 text-cyan-300 text-sm font-bold flex items-center gap-2 shadow-md transition-colors">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <span id="guide-text">動かしたい円盤があるエリアをタップしよう！（最初の1手でタイマースタート）</span>
+        </div>
+    </div>
+
+    <!-- メインゲームボード（3つの杭エリア） -->
+    <main class="flex-1 w-full max-w-7xl mx-auto grid grid-cols-3 gap-3 sm:gap-6 px-2 py-1 z-10 min-h-0">
+        
+        <!-- 杭 0: START -->
+        <div id="tower-0" onclick="handleTowerClick(0)" class="tower-zone glass-panel rounded-3xl flex flex-col justify-between p-4 cursor-pointer border-2 border-slate-700/70">
+            <div class="flex items-center justify-between">
+                <span class="px-3 py-1 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-300 font-cyber text-xs font-bold">
+                    START
+                </span>
+                <span class="text-xs text-slate-400 font-bold">左の塔</span>
+            </div>
+
+            <!-- 棒と円盤のコンテナ -->
+            <div class="relative flex-1 flex flex-col justify-end items-center w-full pb-3 pt-12">
+                <!-- 中央の芯棒 -->
+                <div class="peg-rod w-3 sm:w-4 h-4/5 rounded-t-full absolute bottom-3 z-0"></div>
+                <!-- 円盤が積み重なる領域 -->
+                <div id="disks-container-0" class="w-full flex flex-col-reverse items-center justify-start gap-1.5 z-10"></div>
+                <!-- 土台 -->
+                <div class="peg-base w-11/12 h-4 rounded-full z-10 shadow-lg"></div>
+            </div>
+        </div>
+
+        <!-- 杭 1: SUB -->
+        <div id="tower-1" onclick="handleTowerClick(1)" class="tower-zone glass-panel rounded-3xl flex flex-col justify-between p-4 cursor-pointer border-2 border-slate-700/70">
+            <div class="flex items-center justify-between">
+                <span class="px-3 py-1 rounded-lg bg-purple-500/20 border border-purple-400/40 text-purple-300 font-cyber text-xs font-bold">
+                    CENTER
+                </span>
+                <span class="text-xs text-slate-400 font-bold">真ん中の塔</span>
+            </div>
+
+            <div class="relative flex-1 flex flex-col justify-end items-center w-full pb-3 pt-12">
+                <div class="peg-rod w-3 sm:w-4 h-4/5 rounded-t-full absolute bottom-3 z-0"></div>
+                <div id="disks-container-1" class="w-full flex flex-col-reverse items-center justify-start gap-1.5 z-10"></div>
+                <div class="peg-base w-11/12 h-4 rounded-full z-10 shadow-lg"></div>
+            </div>
+        </div>
+
+        <!-- 杭 2: GOAL -->
+        <div id="tower-2" onclick="handleTowerClick(2)" class="tower-zone glass-panel rounded-3xl flex flex-col justify-between p-4 cursor-pointer border-2 border-emerald-500/30 bg-emerald-950/10">
+            <div class="flex items-center justify-between">
+                <span class="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-cyber text-xs font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-flag-checkered"></i> GOAL
+                </span>
+                <span class="text-xs text-emerald-300/80 font-bold">ここにすべて移動！</span>
+            </div>
+
+            <div class="relative flex-1 flex flex-col justify-end items-center w-full pb-3 pt-12">
+                <div class="peg-rod w-3 sm:w-4 h-4/5 rounded-t-full absolute bottom-3 z-0"></div>
+                <div id="disks-container-2" class="w-full flex flex-col-reverse items-center justify-start gap-1.5 z-10"></div>
+                <div class="peg-base w-11/12 h-4 rounded-full z-10 shadow-lg border-t-emerald-400/60"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- フッター（ヒント＆ベスト記録） -->
+    <footer class="w-full max-w-7xl mx-auto pt-1 flex items-center justify-between text-xs text-slate-400 px-2 z-20">
+        <div class="flex items-center gap-4">
+            <span><i class="fa-solid fa-bolt text-amber-400 mr-1"></i>クリア条件：残り手数0で右端の「GOAL」にすべての円盤を移動させる</span>
+        </div>
+        <div id="best-record-display" class="font-bold text-cyan-300">
+            このレベルの自己ベスト: 未達成
+        </div>
+    </footer>
+
+    <!-- ==========================================
+         モーダル1: クリア時の名前入力＆認定証画面
+    =========================================== -->
+    <div id="clear-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-40 hidden items-center justify-center p-4">
+        
+        <!-- ステップ1：名前入力ボックス -->
+        <div id="name-input-card" class="glass-panel rounded-3xl max-w-md w-full p-6 sm:p-8 text-center border-2 border-cyan-400/50 shadow-2xl transform transition-all">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-900 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-amber-400/40 animate-bounce">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h2 class="font-cyber text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-cyan-300">
+                PERFECT CLEAR!
+            </h2>
+            <p class="text-sm text-slate-300 mt-1 font-bold">
+                最小手数での完全クリア達成おめでとう！<br>名前を入力して達成記録を表示しよう。
+            </p>
+
+            <div class="my-5 bg-slate-900/90 rounded-2xl p-3 border border-slate-700 flex justify-around">
+                <div>
+                    <div class="text-[11px] text-slate-400">クリアレベル</div>
+                    <div id="input-summary-level" class="font-cyber font-bold text-cyan-400 text-lg">Lv.1 (3枚)</div>
+                </div>
+                <div class="border-r border-slate-700"></div>
+                <div>
+                    <div class="text-[11px] text-slate-400">達成タイム</div>
+                    <div id="input-summary-time" class="font-bold text-amber-300 text-lg">0分12秒</div>
+                </div>
+            </div>
+
+            <div class="text-left mb-5">
+                <label for="player-name-input" class="block text-xs font-bold text-cyan-300 mb-1.5 ml-1">
+                    <i class="fa-solid fa-user-astronaut mr-1"></i>プレイヤー名（名前・ニックネーム）
+                </label>
+                <input type="text" id="player-name-input" maxlength="20" placeholder="ここに名前を入力..." 
+                    class="w-full px-4 py-3 rounded-xl bg-slate-950 border-2 border-slate-600 focus:border-cyan-400 focus:outline-none text-white font-bold text-lg text-center shadow-inner">
+            </div>
+
+            <button onclick="showCertificate()" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-base shadow-lg shadow-cyan-500/40 transition active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-award text-xl"></i>
+                <span>達成記録証を発行する！</span>
+            </button>
+        </div>
+
+        <!-- ステップ2：達成認定証カード（iPad横画面に美しく収まるデザイン） -->
+        <div id="certificate-view" class="certificate-card rounded-3xl max-w-2xl w-full p-6 sm:p-8 text-center shadow-2xl hidden flex-col justify-between">
+            
+            <div class="flex items-center justify-between border-b border-slate-700/80 pb-3 mb-4">
+                <div class="flex items-center gap-2 text-left">
+                    <i class="fa-solid fa-shield-halved text-2xl text-cyan-400"></i>
+                    <div>
+                        <div class="font-cyber text-xs text-cyan-400 font-bold tracking-widest">OFFICIAL RECORD CERTIFICATE</div>
+                        <div class="text-sm font-black text-white">ハノイの塔 パーフェクト達成認定証</div>
+                    </div>
+                </div>
+                <div id="cert-rank-badge" class="px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-xs shadow">
+                    👑 称号：論理の覚醒者
+                </div>
+            </div>
+
+            <!-- プレイヤー名 -->
+            <div class="my-2">
+                <div class="text-xs text-slate-400 font-bold">PLAYER NAME</div>
+                <div class="flex items-center justify-center gap-2 mt-1">
+                    <span id="cert-player-name" class="text-3xl sm:text-4xl font-black text-white tracking-wide border-b-2 border-cyan-400 px-6 pb-1">
+                        山田 太郎
+                    </span>
+                    <button onclick="editPlayerName()" class="text-slate-400 hover:text-cyan-300 text-sm p-1.5 rounded-lg bg-slate-800/80" title="名前を修正する">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 記録データ3列（日付・達成時間・レベル＆手数） -->
+            <div class="grid grid-cols-3 gap-3 my-5">
+                <!-- 達成レベル・手数 -->
+                <div class="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-3.5 flex flex-col items-center justify-center">
+                    <div class="text-xs text-cyan-400 font-bold mb-1"><i class="fa-solid fa-layer-group mr-1"></i>クリアレベル</div>
+                    <div id="cert-level" class="font-cyber text-xl sm:text-2xl font-black text-white">LEVEL 1</div>
+                    <div id="cert-moves" class="text-xs text-emerald-400 font-bold mt-1">円盤3枚 / 最小7手達成</div>
+                </div>
+
+                <!-- 達成した時間（メインハイライト） -->
+                <div class="bg-gradient-to-b from-amber-500/20 to-slate-900/90 border-2 border-amber-400/60 rounded-2xl p-3.5 flex flex-col items-center justify-center shadow-lg shadow-amber-500/10">
+                    <div class="text-xs text-amber-300 font-bold mb-1"><i class="fa-solid fa-stopwatch mr-1"></i>達成タイム</div>
+                    <div id="cert-time-jp" class="text-xl sm:text-2xl font-black text-amber-300 leading-tight">0分15秒</div>
+                    <div id="cert-time-detail" class="font-mono-num text-xs text-slate-300 mt-1">(00:15.4)</div>
+                </div>
+
+                <!-- 達成日付 -->
+                <div class="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-3.5 flex flex-col items-center justify-center">
+                    <div class="text-xs text-purple-400 font-bold mb-1"><i class="fa-solid fa-calendar-check mr-1"></i>達成日時</div>
+                    <div id="cert-date" class="text-base sm:text-lg font-black text-white">2026年11月10日</div>
+                    <div id="cert-time-of-day" class="text-xs text-slate-400 font-bold mt-1">10:30 記録</div>
+                </div>
+            </div>
+
+            <!-- アクションボタン -->
+            <div class="flex items-center justify-center gap-4 mt-2">
+                <button onclick="closeClearModalAndRetry()" class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-600 transition active:scale-95 flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>同じレベルをもう一度</span>
+                </button>
+                <button id="btn-next-level" onclick="goToNextLevel()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-base shadow-lg shadow-emerald-500/30 transition active:scale-95 flex items-center gap-2">
+                    <span>次のレベルへ進む！</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         モーダル2: 手数オーバー（ゲームオーバー）画面
+    =========================================== -->
+    <div id="fail-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-3xl max-w-md w-full p-6 sm:p-8 text-center border-2 border-rose-500/60 shadow-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500 text-rose-400 flex items-center justify-center text-3xl mx-auto mb-3">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h2 class="font-cyber text-2xl font-black text-rose-400">OUT OF MOVES!</h2>
+            <p class="text-base font-bold text-white mt-2">最小手数（<span id="fail-min-moves">7</span>手）を使い切りました！</p>
+            <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                このゲームは<strong>1手もムダのない最小手数</strong>でのみクリアとなります。手順を整理してもう一度挑戦しよう！
+            </p>
+            <button onclick="closeFailModalAndRetry()" class="mt-6 w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black text-base shadow-lg shadow-rose-600/40 transition active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>最初からやり直す</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         モーダル3: ルール説明画面（数式文字化け修正済み）
+    =========================================== -->
+    <div id="rule-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-3xl max-w-lg w-full p-6 sm:p-7 border border-cyan-500/40 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                <h3 class="text-lg font-black text-cyan-300 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open"></i>
+                    <span>ハノイの塔：ルールと遊び方</span>
+                </h3>
+                <button onclick="toggleRuleModal(false)" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm text-slate-200 leading-relaxed">
+                <div class="flex items-start gap-3 bg-slate-900/70 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-cyan-500 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">1</span>
+                    <p>左端の<strong>「START」</strong>にあるすべての円盤を、右端の<strong>「GOAL」</strong>へ移動させればクリアです。</p>
+                </div>
+                <div class="flex items-start gap-3 bg-slate-900/70 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-cyan-500 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">2</span>
+                    <p>1回に動かせるのは、それぞれの塔の<strong>一番上にある円盤1枚だけ</strong>です。</p>
+                </div>
+                <div class="flex items-start gap-3 bg-slate-900/70 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-cyan-500 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">3</span>
+                    <p><strong>小さい円盤の上に、それより大きい円盤を乗せることはできません。</strong></p>
+                </div>
+                <div class="flex items-start gap-3 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-amber-200">
+                    <i class="fa-solid fa-star text-amber-400 mt-0.5 shrink-0"></i>
+                    <p><strong>パーフェクト条件：</strong>画面上に表示されている<strong>「最小手数（2<sup>n</sup> − 1手：3枚なら7手、4枚なら15手…）」</strong>ぴったりでクリアを目指そう！最初の1手を動かすとタイマーがスタートします。</p>
+                </div>
+            </div>
+            <button onclick="toggleRuleModal(false)" class="mt-5 w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm transition">
+                わかった！ゲームに戻る
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================
+           ゲーム設定・レベル定義
+        ========================================== */
+        const LEVELS = [
+            { level: 1, disks: 3, minMoves: 7,   title: "論理の覚醒者" },
+            { level: 2, disks: 4, minMoves: 15,  title: "空間認識の達人" },
+            { level: 3, disks: 5, minMoves: 31,  title: "アルゴリズムの支配者" },
+            { level: 4, disks: 6, minMoves: 63,  title: "超頭脳の閃き" },
+            { level: 5, disks: 7, minMoves: 127, title: "伝説のハノイマスター" }
+        ];
+
+        // 円盤のカラーパレット（サイズ1〜7に対応、サイバーネオン調の鮮やかなグラデーション）
+        const DISK_STYLES = [
+            { bg: "linear-gradient(90deg, #f43f5e, #fb7185)", shadow: "rgba(244, 63, 94, 0.5)" },   // 1: Rose
+            { bg: "linear-gradient(90deg, #f97316, #fbbf24)", shadow: "rgba(249, 115, 22, 0.5)" },  // 2: Orange/Amber
+            { bg: "linear-gradient(90deg, #eab308, #fde047)", shadow: "rgba(234, 179, 8, 0.5)" },   // 3: Yellow
+            { bg: "linear-gradient(90deg, #10b981, #34d399)", shadow: "rgba(16, 185, 129, 0.5)" },  // 4: Emerald
+            { bg: "linear-gradient(90deg, #06b6d4, #38bdf8)", shadow: "rgba(6, 182, 212, 0.5)" },   // 5: Cyan
+            { bg: "linear-gradient(90deg, #6366f1, #818cf8)", shadow: "rgba(99, 102, 241, 0.5)" },  // 6: Indigo
+            { bg: "linear-gradient(90deg, #a855f7, #e879f9)", shadow: "rgba(168, 85, 247, 0.5)" }   // 7: Purple
+        ];
+
+        /* ==========================================
+           状態管理変数
+        ========================================== */
+        let currentLevelIndex = 0; // 0 = Lv.1 (3枚)
+        let towers = [[], [], []];
+        let selectedTower = null;  // 現在持ち上げている円盤がある杭のインデックス
+        let moveCount = 0;
+        let isGameActive = false;
+        let isGameFinished = false;
+
+        // タイマー関連
+        let timerInterval = null;
+        let startTime = null;
+        let elapsedMs = 0;
+
+        // プレイヤー名とベスト記録（メモリ内保持）
+        let savedPlayerName = "";
+        let bestRecords = {}; // { 0: { ms: 12300, formatted: "0分12秒" }, ... }
+
+        /* ==========================================
+           Web Audio API サウンドエフェクト
+        ========================================== */
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                if (type === 'pickup') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.exponentialRampToValueAtTime(780, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.09);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                } else if (type === 'drop') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(420, now);
+                    osc.frequency.exponentialRampToValueAtTime(260, now + 0.1);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.11);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.11);
+                } else if (type === 'error') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(160, now);
+                    osc.frequency.setValueAtTime(130, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'clear') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+                        gain.gain.setValueAtTime(0.2, now + idx * 0.09);
+                        gain.gain.exponentialRampToValueAtTime(0.008, now + idx * 0.09 + 0.45);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + idx * 0.09);
+                        osc.stop(now + idx * 0.09 + 0.45);
+                    });
+                } else if (type === 'fail') {
+                    const notes = [350, 310, 260];
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+                        gain.gain.setValueAtTime(0.12, now + idx * 0.14);
+                        gain.gain.exponentialRampToValueAtTime(0.008, now + idx * 0.14 + 0.25);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + idx * 0.14);
+                        osc.stop(now + idx * 0.14 + 0.25);
+                    });
+                }
+            } catch (e) {
+                // Audio context error fallback
+            }
+        }
+
+        /* ==========================================
+           初期化＆UI構築
+        ========================================== */
+        function initApp() {
+            renderLevelButtons();
+            loadLevel(0);
+
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                playSound('drop');
+                loadLevel(currentLevelIndex);
+            });
+
+            document.getElementById('btn-rule').addEventListener('click', () => {
+                toggleRuleModal(true);
+            });
+
+            document.getElementById('btn-sound').addEventListener('click', () => {
+                soundEnabled = !soundEnabled;
+                const icon = document.getElementById('sound-icon');
+                if (soundEnabled) {
+                    icon.className = 'fa-solid fa-volume-high';
+                    playSound('pickup');
+                } else {
+                    icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+                }
+            });
+
+            // Enterキーで名前入力確定できるようにする
+            document.getElementById('player-name-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    showCertificate();
+                }
+            });
+        }
+
+        function renderLevelButtons() {
+            const container = document.getElementById('level-buttons');
+            container.innerHTML = '';
+            LEVELS.forEach((lv, idx) => {
+                const isCleared = Boolean(bestRecords[idx]);
+                const isActive = idx === currentLevelIndex;
+                const btn = document.createElement('button');
+                btn.className = `px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-extrabold transition flex items-center gap-1 ${
+                    isActive 
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/30' 
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`;
+                btn.innerHTML = `
+                    <span>Lv.${lv.level}</span>
+                    <span class="text-[10px] opacity-80">(${lv.disks}枚)</span>
+                    ${isCleared ? '<i class="fa-solid fa-crown text-amber-400 text-[10px] ml-0.5"></i>' : ''}
+                `;
+                btn.onclick = () => {
+                    playSound('pickup');
+                    loadLevel(idx);
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function loadLevel(levelIdx) {
+            currentLevelIndex = levelIdx;
+            const lvConfig = LEVELS[currentLevelIndex];
+
+            // タイマー停止＆リセット
+            stopTimer();
+            elapsedMs = 0;
+            updateTimerUI(0);
+
+            // 状態初期化
+            towers = [[], [], []];
+            for (let i = lvConfig.disks; i >= 1; i--) {
+                towers[0].push(i);
+            }
+            selectedTower = null;
+            moveCount = 0;
+            isGameActive = false;
+            isGameFinished = false;
+
+            // UI更新
+            renderLevelButtons();
+            updateMoveCounters();
+            updateBestRecordUI();
+            setGuideMessage('動かしたい円盤があるエリアをタップしよう！（最初の1手でタイマースタート）', 'cyan');
+            renderBoard();
+        }
+
+        /* ==========================================
+           ボード描画処理
+        ========================================== */
+        function renderBoard() {
+            const lvConfig = LEVELS[currentLevelIndex];
+            const totalDisks = lvConfig.disks;
+
+            for (let t = 0; t < 3; t++) {
+                const towerEl = document.getElementById(`tower-${t}`);
+                const diskContainer = document.getElementById(`disks-container-${t}`);
+                diskContainer.innerHTML = '';
+
+                // 選択中ハイライト
+                if (selectedTower === t) {
+                    towerEl.classList.add('selected-zone');
+                } else {
+                    towerEl.classList.remove('selected-zone');
+                }
+
+                // 移動可能ターゲットの視覚補助
+                if (selectedTower !== null && selectedTower !== t) {
+                    const movingDisk = towers[selectedTower][towers[selectedTower].length - 1];
+                    const topTargetDisk = towers[t][towers[t].length - 1];
+                    if (!topTargetDisk || movingDisk < topTargetDisk) {
+                        towerEl.classList.add('valid-target');
+                    } else {
+                        towerEl.classList.remove('valid-target');
+                    }
+                } else {
+                    towerEl.classList.remove('valid-target');
+                }
+
+                // 各円盤の生成
+                const towerDisks = towers[t];
+                towerDisks.forEach((diskSize, idx) => {
+                    const isTopDisk = idx === towerDisks.length - 1;
+                    const isLifted = selectedTower === t && isTopDisk;
+
+                    const diskEl = document.createElement('div');
+                    diskEl.className = `disk rounded-full ${isLifted ? 'lifted' : ''}`;
+
+                    // 円盤の幅計算（最小30% 〜 最大88%）
+                    const minWidth = 30;
+                    const maxWidth = 88;
+                    const widthPercent = minWidth + ((diskSize - 1) / Math.max(1, totalDisks - 1)) * (maxWidth - minWidth);
+                    diskEl.style.width = `${widthPercent}%`;
+
+                    // iPad横画面に収まるよう円盤の枚数に応じて高さを自動調整
+                    const diskHeight = totalDisks >= 7 ? '26px' : totalDisks === 6 ? '30px' : '34px';
+                    diskEl.style.height = diskHeight;
+
+                    // 色設定
+                    const styleObj = DISK_STYLES[(diskSize - 1) % DISK_STYLES.length];
+                    diskEl.style.background = styleObj.bg;
+                    if (!isLifted) {
+                        diskEl.style.boxShadow = `0 4px 12px ${styleObj.shadow}`;
+                    }
+
+                    // サイズ番号表示
+                    diskEl.innerHTML = `<span class="font-mono-num text-xs sm:text-sm">${diskSize}</span>`;
+                    diskContainer.appendChild(diskEl);
+                });
+            }
+        }
+
+        /* ==========================================
+           タップ操作ロジック
+        ========================================== */
+        function handleTowerClick(towerIdx) {
+            if (isGameFinished) return;
+
+            // 1. まだ円盤を選択していない場合 -> 選択する
+            if (selectedTower === null) {
+                if (towers[towerIdx].length === 0) {
+                    triggerTowerError(towerIdx, 'そこには円盤がありません！');
+                    return;
+                }
+                selectedTower = towerIdx;
+                playSound('pickup');
+                setGuideMessage('移動先の塔をタップして円盤を置こう！（同じ塔をタップでキャンセル）', 'amber');
+                renderBoard();
+                return;
+            }
+
+            // 2. 同じ塔をタップした場合 -> 選択キャンセル
+            if (selectedTower === towerIdx) {
+                selectedTower = null;
+                playSound('drop');
+                setGuideMessage('選択をキャンセルしました。動かす円盤をタップしよう！', 'cyan');
+                renderBoard();
+                return;
+            }
+
+            // 3. 別の塔をタップした場合 -> 移動判定
+            const sourceDisks = towers[selectedTower];
+            const targetDisks = towers[towerIdx];
+            const movingDisk = sourceDisks[sourceDisks.length - 1];
+            const topTargetDisk = targetDisks[targetDisks.length - 1];
+
+            // ルール違反チェック（小さい円盤の上に大きい円盤は置けない）
+            if (topTargetDisk !== undefined && movingDisk > topTargetDisk) {
+                triggerTowerError(towerIdx, `ルール違反！ [${topTargetDisk}] の上にそれより大きい [${movingDisk}] は置けません！`);
+                return;
+            }
+
+            // 最初の1手でタイマースタート
+            if (!isGameActive && moveCount === 0) {
+                startTimer();
+                isGameActive = true;
+            }
+
+            // 円盤の移動実行
+            sourceDisks.pop();
+            targetDisks.push(movingDisk);
+            selectedTower = null;
+            moveCount++;
+            playSound('drop');
+
+            updateMoveCounters();
+            renderBoard();
+
+            // クリア判定・手数オーバー判定
+            checkGameStatus();
+        }
+
+        function triggerTowerError(towerIdx, message) {
+            playSound('error');
+            const towerEl = document.getElementById(`tower-${towerIdx}`);
+            towerEl.classList.remove('shake-error');
+            void towerEl.offsetWidth; // リフロー強制
+            towerEl.classList.add('shake-error');
+            setTimeout(() => towerEl.classList.remove('shake-error'), 450);
+
+            setGuideMessage(message, 'rose');
+        }
+
+        function updateMoveCounters() {
+            const lvConfig = LEVELS[currentLevelIndex];
+            const remaining = Math.max(0, lvConfig.minMoves - moveCount);
+
+            document.getElementById('min-moves-label').textContent = lvConfig.minMoves;
+            document.getElementById('remaining-moves').textContent = remaining;
+            document.getElementById('current-moves').textContent = moveCount;
+
+            const remEl = document.getElementById('remaining-moves');
+            if (remaining <= 3 && remaining > 0) {
+                remEl.className = 'font-mono-num text-2xl sm:text-3xl font-extrabold text-amber-400 leading-none inline-block min-w-[3ch] text-right';
+            } else if (remaining === 0) {
+                remEl.className = 'font-mono-num text-2xl sm:text-3xl font-extrabold text-rose-400 leading-none inline-block min-w-[3ch] text-right';
+            } else {
+                remEl.className = 'font-mono-num text-2xl sm:text-3xl font-extrabold text-white leading-none inline-block min-w-[3ch] text-right';
+            }
+        }
+
+        function setGuideMessage(text, colorType) {
+            const banner = document.getElementById('guide-banner');
+            const textEl = document.getElementById('guide-text');
+            textEl.textContent = text;
+
+            if (colorType === 'rose') {
+                banner.className = 'px-6 py-1.5 rounded-full bg-rose-950/90 border border-rose-500/60 text-rose-300 text-sm font-bold flex items-center gap-2 shadow-md transition-colors';
+            } else if (colorType === 'amber') {
+                banner.className = 'px-6 py-1.5 rounded-full bg-amber-950/90 border border-amber-400/60 text-amber-300 text-sm font-bold flex items-center gap-2 shadow-md transition-colors';
+            } else if (colorType === 'emerald') {
+                banner.className = 'px-6 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-400/60 text-emerald-300 text-sm font-bold flex items-center gap-2 shadow-md transition-colors';
+            } else {
+                banner.className = 'px-6 py-1.5 rounded-full bg-slate-800/90 border border-cyan-500/30 text-cyan-300 text-sm font-bold flex items-center gap-2 shadow-md transition-colors';
+            }
+        }
+
+        /* ==========================================
+           クリア＆手数オーバー判定
+        ========================================== */
+        function checkGameStatus() {
+            const lvConfig = LEVELS[currentLevelIndex];
+
+            // 右端（GOAL: tower 2）にすべての円盤が揃ったか
+            if (towers[2].length === lvConfig.disks) {
+                isGameFinished = true;
+                stopTimer();
+                playSound('clear');
+                launchConfetti();
+                setGuideMessage('🎉 パーフェクトクリア達成！！素晴らしい頭脳です！', 'emerald');
+
+                // ベスト記録更新チェック
+                if (!bestRecords[currentLevelIndex] || elapsedMs < bestRecords[currentLevelIndex].ms) {
+                    bestRecords[currentLevelIndex] = {
+                        ms: elapsedMs,
+                        formatted: formatJapaneseDuration(elapsedMs)
+                    };
+                }
+                renderLevelButtons();
+                updateBestRecordUI();
+
+                setTimeout(() => {
+                    openClearModal();
+                }, 450);
+                return;
+            }
+
+            // 最小手数を使い切ったのにクリアできていない場合
+            if (moveCount >= lvConfig.minMoves) {
+                isGameFinished = true;
+                stopTimer();
+                playSound('fail');
+                setGuideMessage('手数オーバー！最小手数でのクリアを目指そう！', 'rose');
+
+                setTimeout(() => {
+                    document.getElementById('fail-min-moves').textContent = lvConfig.minMoves;
+                    const failModal = document.getElementById('fail-modal');
+                    failModal.classList.remove('hidden');
+                    failModal.classList.add('flex');
+                }, 350);
+                return;
+            }
+
+            setGuideMessage(`ナイスムーブ！残り ${lvConfig.minMoves - moveCount} 手でGOALに揃えよう！`, 'cyan');
+        }
+
+        /* ==========================================
+           タイマー機能（ガタつきゼロの高速更新）
+        ========================================== */
+        function startTimer() {
+            stopTimer();
+            startTime = performance.now();
+            timerInterval = setInterval(() => {
+                elapsedMs = performance.now() - startTime;
+                updateTimerUI(elapsedMs);
+            }, 50);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function updateTimerUI(ms) {
+            document.getElementById('timer-display').textContent = formatDigitalTimer(ms);
+        }
+
+        // デジタル時計表記 (MM:SS.d)
+        function formatDigitalTimer(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const tenths = Math.floor((ms % 1000) / 100);
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`;
+        }
+
+        // 日本語の「〇分〇秒」表記
+        function formatJapaneseDuration(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const tenths = Math.floor((ms % 1000) / 100);
+            return `${minutes}分${seconds}.${tenths}秒`;
+        }
+
+        function updateBestRecordUI() {
+            const bestEl = document.getElementById('best-record-display');
+            const rec = bestRecords[currentLevelIndex];
+            if (rec) {
+                bestEl.innerHTML = `<i class="fa-solid fa-crown text-amber-400 mr-1"></i>Lv.${currentLevelIndex + 1} 自己ベスト: ${rec.formatted}`;
+            } else {
+                bestEl.textContent = `Lv.${currentLevelIndex + 1} 自己ベスト: 未達成`;
+            }
+        }
+
+        /* ==========================================
+           クリアモーダル＆達成認定証表示
+        ========================================== */
+        function openClearModal() {
+            const lvConfig = LEVELS[currentLevelIndex];
+            const clearModal = document.getElementById('clear-modal');
+            const nameCard = document.getElementById('name-input-card');
+            const certView = document.getElementById('certificate-view');
+
+            document.getElementById('input-summary-level').textContent = `Lv.${lvConfig.level} (${lvConfig.disks}枚)`;
+            document.getElementById('input-summary-time').textContent = formatJapaneseDuration(elapsedMs);
+
+            const nameInput = document.getElementById('player-name-input');
+            nameInput.value = savedPlayerName;
+
+            nameCard.classList.remove('hidden');
+            certView.classList.add('hidden');
+            certView.classList.remove('flex');
+
+            clearModal.classList.remove('hidden');
+            clearModal.classList.add('flex');
+
+            setTimeout(() => {
+                nameInput.focus();
+            }, 100);
+        }
+
+        function showCertificate() {
+            playSound('pickup');
+            const nameInput = document.getElementById('player-name-input');
+            const inputVal = nameInput.value.trim();
+            savedPlayerName = inputVal || "名無しのチャレンジャー";
+
+            const lvConfig = LEVELS[currentLevelIndex];
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+
+            // 認定証データの流し込み
+            document.getElementById('cert-player-name').textContent = savedPlayerName;
+            document.getElementById('cert-rank-badge').textContent = `👑 称号：${lvConfig.title}`;
+            document.getElementById('cert-level').textContent = `LEVEL ${lvConfig.level}`;
+            document.getElementById('cert-moves').textContent = `円盤${lvConfig.disks}枚 / 最小${lvConfig.minMoves}手PERFECT`;
+            document.getElementById('cert-time-jp').textContent = formatJapaneseDuration(elapsedMs);
+            document.getElementById('cert-time-detail').textContent = `(${formatDigitalTimer(elapsedMs)})`;
+            document.getElementById('cert-date').textContent = `${year}年${month}月${day}日`;
+            document.getElementById('cert-time-of-day').textContent = `${hours}:${mins} 達成`;
+
+            // 最終レベルの場合は「次のレベルへ」ボタンの表示を調整
+            const nextBtn = document.getElementById('btn-next-level');
+            if (currentLevelIndex >= LEVELS.length - 1) {
+                nextBtn.innerHTML = `<i class="fa-solid fa-crown"></i><span>全レベル制覇！Lv.1へ</span>`;
+            } else {
+                nextBtn.innerHTML = `<span>次の LEVEL ${lvConfig.level + 1} へ挑戦！</span><i class="fa-solid fa-arrow-right"></i>`;
+            }
+
+            // 表示切り替え
+            document.getElementById('name-input-card').classList.add('hidden');
+            const certView = document.getElementById('certificate-view');
+            certView.classList.remove('hidden');
+            certView.classList.add('flex');
+        }
+
+        function editPlayerName() {
+            document.getElementById('certificate-view').classList.add('hidden');
+            document.getElementById('certificate-view').classList.remove('flex');
+            document.getElementById('name-input-card').classList.remove('hidden');
+            document.getElementById('player-name-input').focus();
+        }
+
+        function closeClearModalAndRetry() {
+            playSound('drop');
+            const clearModal = document.getElementById('clear-modal');
+            clearModal.classList.add('hidden');
+            clearModal.classList.remove('flex');
+            loadLevel(currentLevelIndex);
+        }
+
+        function goToNextLevel() {
+            playSound('pickup');
+            const clearModal = document.getElementById('clear-modal');
+            clearModal.classList.add('hidden');
+            clearModal.classList.remove('flex');
+
+            const nextIdx = (currentLevelIndex + 1) % LEVELS.length;
+            loadLevel(nextIdx);
+        }
+
+        function closeFailModalAndRetry() {
+            playSound('drop');
+            const failModal = document.getElementById('fail-modal');
+            failModal.classList.add('hidden');
+            failModal.classList.remove('flex');
+            loadLevel(currentLevelIndex);
+        }
+
+        function toggleRuleModal(show) {
+            playSound('pickup');
+            const modal = document.getElementById('rule-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        /* ==========================================
+           紙吹雪エフェクト（Canvasアニメーション）
+        ========================================== */
+        function launchConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = [];
+            const colors = ['#38bdf8', '#f43f5e', '#fbbf24', '#34d399', '#a855f7', '#ffffff'];
+
+            for (let i = 0; i < 110; i++) {
+                particles.push({
+                    x: canvas.width / 2 + (Math.random() - 0.5) * 200,
+                    y: canvas.height / 2,
+                    vx: (Math.random() - 0.5) * 18,
+                    vy: (Math.random() - 1) * 16 - 4,
+                    size: Math.random() * 8 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rotation: Math.random() * 360,
+                    vr: (Math.random() - 0.5) * 12
+                });
+            }
+
+            let frame = 0;
+            function animateConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.35; // 重力
+                    p.rotation += p.vr;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rotation * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                    ctx.restore();
+                });
+
+                frame++;
+                if (frame < 120) {
+                    requestAnimationFrame(animateConfetti);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            requestAnimationFrame(animateConfetti);
+        }
+
+        // ウィンドウリサイズ対応
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('confetti-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // 起動
+        window.onload = initApp;
+    </script>
+</body>
+</html>
